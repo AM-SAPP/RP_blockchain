@@ -12,7 +12,7 @@ contract Healthcare{
         string[] MedicalHistory;
     }
 
-    // structure of Patient.
+    // structure of Patient.  
     struct Patient{
         string name;
         uint8 age;
@@ -26,6 +26,7 @@ contract Healthcare{
         string name;
         uint8 age;
         bool isEmployed;
+        address owner;
         string registrationNo;
         uint8[] qualifications;
         uint8[] specializations;
@@ -60,11 +61,50 @@ contract Healthcare{
     mapping(address => Patient) PatientInfo;
     mapping(address => Doctor) DoctorInfo;
     mapping(address => Hospital) HospitalInfo;
-    mapping(uint8 => mapping(address=>Doctor)) DoctorWithSpecialization;
+
+    
+
+    // both these fields are together , 
+    // and counterOfSpecializedDoctor counts doctor with a particular specialization.
+    mapping(uint8 => mapping(uint256=>Doctor)) FilterWithSpecialization;
+    mapping(uint8 => uint256) counterOfSpecializedDoctor;
+
+    // This is used to filter doctor according to specialization in a hospital.
+    mapping(address => mapping(uint8 => mapping(uint256 => address))) SpecializedDoctorInHospital;
+    mapping(address => uint8) countOfSpecializationInHospital;
+    mapping(uint8 => uint256) countOfDoctorForASpecialization;
+
+
     mapping(uint8 => DoctorSpecialization) SpecializationOfDoctors;
     mapping(uint8 => DoctorQualification) QualificationOfDoctors;
 
     uint credit = 0;
+
+    DoctorQualification [] all_qualifications;
+    DoctorSpecialization [] all_specializations; 
+
+    constructor () {
+        initializeAllQualifications();
+        initializeAllSpecializations();
+    }
+
+
+    function initializeAllQualifications() internal {
+        all_qualifications.push(DoctorQualification("MBBS","Bachelor of Medicine, Bachelor of Surgery"));
+        all_qualifications.push(DoctorQualification("BDS","Bachelor of Dental Surgery"));
+        all_qualifications.push(DoctorQualification("BAMS","Bachelor of Ayurvedic Medicine and Surgery"));
+        all_qualifications.push(DoctorQualification("BUMS","Bachelor of Unani Medicine and Surgery"));
+        all_qualifications.push(DoctorQualification("BHMS","Bachelor of Homeopathy Medicine and Surgery"));
+        all_qualifications.push(DoctorQualification("BYNS","Bachelor of Yoga and Naturopathy Sciences"));
+    }
+
+    function initializeAllSpecializations () internal{
+        all_specializations.push(DoctorSpecialization("MS","Ear, Nose and Throat"));
+        all_specializations.push(DoctorSpecialization("MS","General Surgery"));
+        all_specializations.push(DoctorSpecialization("MS","Orthopaedics"));
+        all_specializations.push(DoctorSpecialization("MS","Obstetrics and Gynaecology"));
+        all_specializations.push(DoctorSpecialization("MS","Dermatology, Venerology and Leprosy"));
+    }
 
     // used to add to doctor to hospital
     function addDoctorToHospital(address daddr) public {
@@ -92,8 +132,6 @@ contract Healthcare{
         HospitalList.push(msg.sender);
     }
 
-
-
     // Gets the list of hospital
     function getAllHospital() view public returns(string [] memory,address [] memory){
         string [] memory hospitalNames = new string[](HospitalList.length);
@@ -103,7 +141,6 @@ contract Healthcare{
 
         return (hospitalNames,HospitalList);
     }
-
 
     // Gets the hostipal details
     function getHospitalDetails(address haddr) view public returns(Hospital memory){
@@ -132,6 +169,7 @@ contract Healthcare{
         }
         Doctor memory d;
         d.name = _name;
+        d.owner = msg.sender;
         d.age = _age;
         d.isEmployed = false;
         d.registrationNo = _registrationNo;
@@ -144,14 +182,61 @@ contract Healthcare{
     // Add specialization of a doctor
 
     function addSpecialization(address daddr,uint8 specializationCode) public {
+        if(msg.sender != daddr){
+            revert();
+        }
+
         DoctorInfo[daddr].specializations[specializationCode] = 1;
+        uint256 counter = counterOfSpecializedDoctor[specializationCode];
+        counter++;
+        FilterWithSpecialization[specializationCode][counter] = DoctorInfo[daddr];
+        counterOfSpecializedDoctor[specializationCode] = counter;
+
+
+        // adding specializationOfDoctorInAHospital
+        Doctor memory d = DoctorInfo[daddr];
+
+        if ( d.isEmployed == true){
+            address haddr = d.currentHospital;
+            uint256 count = countOfDoctorForASpecialization[specializationCode];
+            count++;
+            SpecializedDoctorInHospital[haddr][specializationCode][count] = daddr;
+            
+
+        }
     }
+
+    // Get Doctor with a particular specialization
+
+    function getSpecializatedDoctorList(uint8 _specializationCode) public view returns(address [] memory , string [] memory,string [] memory) {
+        // first parameter will return address of doctor
+        // 2nd parameter will return doctor name
+        // third parameter will return hospital in which doctor is working.
+        
+        uint256 count = counterOfSpecializedDoctor[_specializationCode];
+        string [] memory doctorNames = new string[](count);
+        address [] memory doctorAddresses = new address[](count);
+        string [] memory hospitalName = new string[](count);
+        for (uint256 i=1;i<=count;i++){
+            Doctor memory d = FilterWithSpecialization[_specializationCode][i];
+            doctorNames[i-1] = d.name;
+            doctorAddresses[i-1] = d.owner;
+            if (d.isEmployed == true){
+                hospitalName[i-1] = HospitalInfo[d.currentHospital].name;
+            }else{
+                hospitalName[i-1] = "None";
+            }
+        }
+
+
+        return (doctorAddresses,doctorNames,hospitalName);
+    }
+
+
 
     function addQualification(address daddr,uint8 qualificationCode) public {
         DoctorInfo[daddr].qualifications[qualificationCode] = 1;
     }
-
-
 
     // This is used for getting which doctor is workinig in a hospital
     function getDoctorsWorkingInHospital(address haddr) view public returns (address[] memory){
