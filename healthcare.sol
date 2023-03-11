@@ -12,6 +12,15 @@ contract Healthcare{
         string[] MedicalHistory;
     }
 
+    // enum Profile{ PATIENT , DOCTOR , HOSPITAL};
+
+    struct ProfileOfUser{
+        bool isPatient;
+        bool isDoctor;
+        bool isHospital;   
+        address owner;
+    }
+
     // structure of Patient.  
     struct Patient{
         string name;
@@ -61,6 +70,7 @@ contract Healthcare{
     mapping(address => Patient) PatientInfo;
     mapping(address => Doctor) DoctorInfo;
     mapping(address => Hospital) HospitalInfo;
+    mapping(address => ProfileOfUser) ProfileInfo;
 
     
 
@@ -130,6 +140,30 @@ contract Healthcare{
         h.name = _name;
         HospitalInfo[msg.sender] = h;
         HospitalList.push(msg.sender);
+
+        // Adding Profile to send to frontend for different views
+
+        if(ProfileInfo[msg.sender].owner == address(0) ){
+            ProfileOfUser memory prof;
+            prof.isHospital = true;
+            prof.owner = msg.sender;
+            ProfileInfo[msg.sender] = prof;
+        }else{
+            ProfileInfo[msg.sender].isHospital = true;
+        }
+    }
+
+    function IsUserRegistration() view public returns (bool){
+        if(ProfileInfo[msg.sender].owner == address(0) ){
+            return false;
+        }else {
+            return true;
+        }
+    } 
+
+    function getProfileOfUser() view public returns (ProfileOfUser memory) {
+        ProfileOfUser memory p = ProfileInfo[msg.sender];
+        return p;
     }
 
     // Gets the list of hospital
@@ -160,6 +194,16 @@ contract Healthcare{
         p.record.heightInCm = _heightInCm;
         allPatientsList.push(msg.sender);
         PatientInfo[msg.sender] = p;
+
+
+        if(ProfileInfo[msg.sender].owner == address(0) ){
+            ProfileOfUser memory prof;
+            prof.isPatient = true;
+            prof.owner = msg.sender;
+            ProfileInfo[msg.sender] = prof;
+        }else{
+            ProfileInfo[msg.sender].isPatient = true;
+        }
     }
 
     // Used to register doctor and check if doctor already exists at a particular address
@@ -177,6 +221,16 @@ contract Healthcare{
         d.qualifications = new uint8[](256);
         allDoctorsList.push(msg.sender);
         DoctorInfo[msg.sender] = d;
+
+
+        if(ProfileInfo[msg.sender].owner == address(0)){
+            ProfileOfUser memory prof;
+            prof.isDoctor = true;
+            prof.owner = msg.sender;
+            ProfileInfo[msg.sender] = prof;
+        }else{
+            ProfileInfo[msg.sender].isDoctor = true;
+        }
     }
 
     // Add specialization of a doctor
@@ -201,8 +255,6 @@ contract Healthcare{
             uint256 count = countOfDoctorForASpecialization[specializationCode];
             count++;
             SpecializedDoctorInHospital[haddr][specializationCode][count] = daddr;
-            
-
         }
     }
 
